@@ -5,7 +5,7 @@ See on [Symantec Connect](https://www.symantec.com/connect/downloads/servicedesk
 
 Version	SD 7.6
 
-This download (Protirus.ServiceDesk.WebParts.dll) is a couple of custom Web Parts to show 'ServiceDesk Assignments' and the 'Auditing Incident Owner and Service Queue Changes'.
+This download ([Protirus.ServiceDesk.WebParts.dll](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/releases/latest)) is a couple of custom Web Parts to show 'ServiceDesk Assignments' and the 'Auditing Incident Owner and Service Queue Changes'.
 
 ![WebParts - SD Assignments and Queue Info](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/WebParts%20-%20SD%20Assignments%20and%20Queue%20Info.png)
 
