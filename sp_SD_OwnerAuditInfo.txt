@@ -1,0 +1,60 @@
+USE [ProcessManager]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_SD_OwnerAuditInfo]    Script Date: 21/04/2016 16:15:03 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		Brent Ring
+--				bring@symantec.com
+--				https://www-secure.symantec.com/connect/user/bring
+--              Alex Hedley
+--              https://www-secure.symantec.com/connect/user/alexhedley
+-- Create date: 22 Aug 2013
+--            : 15 Apr 2016
+-- Description:	Send Incident to Workflow - Auditing Incident Owner and Service Queue Changes
+--              https://www-secure.symantec.com/connect/videos/send-incident-workflow-auditing-incident-owner-and-service-queue-changes
+--              Taken from the video and made into a SP.
+-- =============================================
+CREATE PROCEDURE [dbo].[sp_SD_OwnerAuditInfo] 
+	-- Add the parameters for the stored procedure here
+	@sessionid UniqueIdentifier
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    -- Insert statements for procedure here
+	SELECT 
+		[owner_audit_info_id]
+		,[is_current_owner]
+		,[owner_email]
+		,[ownership_taken_on]
+		--,[ownership_relinquished]
+		,CASE 
+            WHEN [ownership_relinquished] = '1753-01-01 00:00:00.000'
+				THEN
+					NULL
+				ELSE
+					[ownership_relinquished]
+		END 
+			AS [ownership_relinquished]
+		,CASE 
+            WHEN [ownership_relinquished] = '1753-01-01 00:00:00.000'
+				THEN
+					NULL 
+				ELSE
+					DATEDIFF(mi, [ownership_taken_on], [ownership_relinquished]) 
+		END 
+			AS [ownership_time]
+		--,[ownership_time]
+		,[incident_session_id]
+	FROM 
+		[owner_audit_info]
+	WHERE
+		[incident_session_id] = @sessionid
+	ORDER BY
+		[ownership_taken_on] DESC
+END

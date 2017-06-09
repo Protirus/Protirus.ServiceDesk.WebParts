@@ -1,0 +1,141 @@
+USE [ProcessManager]
+GO
+/****** Object:  StoredProcedure [dbo].[sp_SD_TrackAssignments]    Script Date: 15/04/2016 16:02:12 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		bcason https://www-secure.symantec.com/connect/user/bcason
+--              Alex Hedley
+--              https://www-secure.symantec.com/connect/user/alexhedley
+-- Create date: 13 Mar 2014
+--            : 15 Apr 2016
+-- Description:	ServiceDesk 7.5 Track Assignments via Process Type Actions
+--				https://www-secure.symantec.com/connect/articles/servicedesk-75-track-assignments-process-type-actions
+-- =============================================
+CREATE PROCEDURE [dbo].[sp_SD_TrackAssignments] 
+	-- Add the parameters for the stored procedure here
+	@sessionid UniqueIdentifier
+	
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    -- Insert statements for procedure here
+	;with
+			cteOwner (ticket, dateposted, assignment, executionorder, rownum)
+			as
+			(
+					select top 100 percent rp.ReportProcessID, rpc.DatePosted,
+					LEFT(REPLACE(rpc.CommentBrief, 'Ownership was assigned to ', ''), LEN(REPLACE(rpc.CommentBrief, 'Ownership was assigned to ', '')) - 1),
+					rpc.ExecutionOrder,
+					ROW_NUMBER() over (order by rp.ReportProcessID, rpc.ExecutionOrder)
+					from ReportProcessComment as rpc
+					join ReportProcess rp on rp.SessionID = rpc.SessionID
+					where rpc.CommentBrief like 'Ownership%'
+					order by rp.ReportProcessID, rpc.ExecutionOrder
+			),
+			cteAssignment (ticket, dateposted, assignment, rownum)
+			as
+			(
+					select top 100 percent WFTaskNumberPrefix, m.MessagePostedDate,
+					stuff(( select distinct ', ' + isnull(g.GroupName, '') + ISNULL(u.PrimaryEmail, '') as [text()]
+							from Messages sub
+							join Task on Task.TaskID = m.MessageId
+							join TaskAssignment ta on ta.TaskID = Task.TaskID
+							left outer join [User] u on u.UserID = ta.ReferenceID
+							left outer join [Group] g on g.GroupID = ta.ReferenceID
+							where sub.MessagePostedDate = m.MessagePostedDate
+					for XML PATH('')), 1, 2, '') as [Assignments],
+					ROW_NUMBER() over (order by WFTaskNumberPrefix, m.MessagePostedDate)
+					from Messages m
+					join Task on Task.TaskID = m.MessageId
+					join TaskAssignment ta on ta.TaskID = Task.TaskID
+					left outer join [User] u on u.UserID = ta.ReferenceID
+					left outer join [Group] g on g.GroupID = ta.ReferenceID
+					group by WFTaskNumberPrefix, m.MessagePostedDate, m.MessageId
+					order by WFTaskNumberPrefix, m.MessagePostedDate
+			)
+
+	select 'Current' as [Method],
+	dbo.GetTaskAssignments(t.TaskID) as [Assignments],
+	convert(varchar(10), datediff(mi, t.AssignedDate, isnull(rp.ProcessEnded, GETDATE()))/(24*60)) + ' days, '
+	+ convert(varchar(10), (datediff(mi, t.AssignedDate, isnull(rp.ProcessEnded, GETDATE())) - (datediff(mi, t.AssignedDate, isnull(rp.ProcessEnded, GETDATE()))/1440)*1440) / 60) + ' hours, '
+	+ convert(varchar(10), (datediff(mi, t.AssignedDate, isnull(rp.ProcessEnded, GETDATE())) - (datediff(mi, t.AssignedDate, isnull(rp.ProcessEnded, GETDATE()))/1440)*1440) % 60) + ' minutes'
+	as [Assignment Duration],
+	cast(convert(varchar(20), t.AssignedDate, 20) as varchar(20)) as [Date Assigned],
+	isnull(cast(convert(varchar(20), rp.ProcessEnded, 20) as varchar(20)), '') as [Date Released]
+	from Task as t
+	join ReportProcess rp on rp.SessionID = t.SessionID
+	join ImIncidentTicket iit on iit.WorkResolveTaskId = t.TaskID
+	and t.SessionID = @sessionid
+	union
+	select 'Task' as [Method],
+	t1.assignment as [Assignments],
+	case
+			when rp.ProcessEnded is NULL
+			then
+					convert(varchar(10), datediff(mi, t1.dateposted,GETDATE())/(24*60)) + ' days, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, GETDATE()) - (datediff(mi, t1.dateposted, GETDATE())/1440)*1440) / 60) + ' hours, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, GETDATE()) - (datediff(mi, t1.dateposted, GETDATE())/1440)*1440) % 60) + ' minutes'
+			else
+					convert(varchar(10), datediff(mi, t1.dateposted, rp.ProcessEnded)/(24*60)) + ' days, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, rp.ProcessEnded) - (datediff(mi, t1.dateposted, rp.ProcessEnded)/1440)*1440) / 60) + ' hours, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, rp.ProcessEnded) - (datediff(mi, t1.dateposted, rp.ProcessEnded)/1440)*1440) % 60) + ' minutes'
+	end as [Assignment Duration],
+	cast(convert(varchar(20), t1.dateposted, 20) as varchar(20)) as [Date Assigned],
+	case
+			when datediff(ss, t3.dateposted, t1.dateposted) < 10
+			then
+					isnull(cast(convert(varchar(20), rp.ProcessEnded, 20) as varchar(20)), convert(varchar(20), t3.dateposted, 20))
+			else
+					isnull(cast(convert(varchar(20), rp.ProcessEnded, 20) as varchar(20)), '')
+	end as [Date Released]
+	from cteAssignment t1
+	left outer join cteAssignment t2 on t2.rownum = t1.rownum - 1
+	left outer join cteAssignment t3 on t3.rownum = t1.rownum + 1
+	join Task on WFTaskNumberPrefix = t1.ticket
+	join ReportProcess rp on rp.SessionID = Task.SessionID
+	where Task.SessionID = @sessionid
+	union
+	select 'Ownership' as [Method],
+	t1.assignment as [Assignments],
+	case
+			when t1.assignment = iit.Owner
+			then
+					case
+							when rp.ProcessEnded is NULL
+							then
+									convert(varchar(10), datediff(mi, t1.dateposted, GETDATE())/(24*60)) + ' days, '
+									+ convert(varchar(10), (datediff(mi, t1.dateposted, GETDATE()) - (datediff(mi, t1.dateposted, GETDATE())/1440)*1440) / 60) + ' hours, '
+									+ convert(varchar(10), (datediff(mi, t1.dateposted, GETDATE()) - (datediff(mi, t1.dateposted, GETDATE())/1440)*1440) % 60) + ' minutes'
+							else
+									convert(varchar(10), datediff(mi, t1.dateposted, rp.ProcessEnded)/(24*60)) + ' days, '
+									+ convert(varchar(10), (datediff(mi, t1.dateposted, rp.ProcessEnded) - (datediff(mi, t1.dateposted, rp.ProcessEnded)/1440)*1440) / 60) + ' hours, '
+									+ convert(varchar(10), (datediff(mi, t1.dateposted, rp.ProcessEnded) - (datediff(mi, t1.dateposted, rp.ProcessEnded)/1440)*1440) % 60) + ' minutes'
+							end
+			else
+					convert(varchar(10), datediff(mi, t1.dateposted, t3.dateposted)/(24*60)) + ' days, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, t3.dateposted) - (datediff(mi, t1.dateposted, t3.dateposted)/1440)*1440) / 60) + ' hours, '
+					+ convert(varchar(10), (datediff(mi, t1.dateposted, t3.dateposted) - (datediff(mi, t1.dateposted, t3.dateposted)/1440)*1440) % 60) + ' minutes'
+	end as [Assignment Duration],
+	cast(convert(varchar(20), t1.dateposted, 20) as varchar(20)) as [Date Assigned],
+	case
+			when rp.ProcessEnded is NULL
+			then
+					isnull(cast(convert(varchar(20), t3.dateposted, 20) as varchar(20)), '')
+			else
+					convert(varchar(20), rp.ProcessEnded, 20)
+	end as [Date Released]
+	from cteOwner t1
+	left outer join cteOwner t2 on t2.rownum = t1.rownum - 1
+	left outer join cteOwner t3 on t3.rownum = t1.rownum + 1
+	join ReportProcess rp on rp.ReportProcessID = t1.ticket
+	join ImIncidentTicket iit on iit.SessionId = rp.SessionID
+	where rp.SessionID = @sessionid
+	order by 1, 4 desc
+
+END
