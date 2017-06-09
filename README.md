@@ -7,7 +7,7 @@ Version	SD 7.6
 
 This download (Protirus.ServiceDesk.WebParts.dll) is a couple of custom Web Parts to show 'ServiceDesk Assignments' and the 'Auditing Incident Owner and Service Queue Changes'.
 
-WebParts - SD Assignments and Queue Info (1).png
+![WebParts - SD Assignments and Queue Info](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/WebParts%20-%20SD%20Assignments%20and%20Queue%20Info.png)
 
 If you haven't see the following Article/Video I would advise doing so first.
 
@@ -21,13 +21,13 @@ The idea is to save having to add Process Type Actions and an extra page to open
 
 The Track Assignments you can use with only adding the below Stored Procedure to your DB but for the Auditing you will need to follow the video to add in the necessary tables via the Web App project.
 
+As you can see in the Track Assignments article there is text file "track_all_assignments.txt" which we need to convert to a Stored Procedure, just add in the SessionID parameter and save as "sp_SD_TrackAssignments"
 
-
-As you can see in the Track Assignments article there is text file "track_all_assignments.txt" which we need to convert to a Stored Procedure, just add in the SessionID parameter and save as "sp_SD_TrackAssignments" (see attached) [sp_SD_TrackAssignments].
+[sp_SD_TrackAssignments](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/sp_SD_TrackAssignments.txt)
 
 Next we want a couple of SPs for the Audit info:
 
-[sp_SD_AuditProcessInfo]
+[sp_SD_AuditProcessInfo](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/sp_SD_AuditProcessInfo.txt)
 ```SQL
 SELECT 
 	[audit_process_info_id]
@@ -57,9 +57,10 @@ WHERE
 	[incident_session_id] = @sessionid
 ORDER BY
 	[assigned_on_date] DESC
-Click and drag to move
-[sp_SD_OwnerAuditInfo]
 ```
+
+[sp_SD_OwnerAuditInfo](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/sp_SD_OwnerAuditInfo.txt)
+
 ```SQL
 SELECT 
 	[owner_audit_info_id]
@@ -91,10 +92,10 @@ ORDER BY
 	[ownership_taken_on] DESC
 ```
 
-Click and drag to move
 Just update the first line to match the name of your Process Manager Instance and rename from ".txt" to ".sql" and run in your SSMS.
 
 ```USE [ProcessManager]```
+
 Now we need to upload the WebPart
 
 Login to Process Manager
@@ -111,10 +112,11 @@ You may need an IIS Reset or WF Services restart.
 
 Go to Admin -> Portal -> Web Parts Catalog
 
-Click on the document_add.png button and then give it a new Category name and search for each and add individually
+Click on the + button and then give it a new Category name and search for each and add individually
 
-SDIncidentServiceQueueHistory
-SDTrackAssignmentsWebPart
+- SDIncidentServiceQueueHistory
+- SDTrackAssignmentsWebPart
+
 Now these are available to add to the Process View Page.
 
 Go to the Page in Admin -> Portal -> Manage Pages
@@ -129,13 +131,11 @@ Site Actions | Add Web Part
 
 Now add the new web parts from the new Category you created and give them titles.
 
-
-
 Here are a couple of examples depending on the state of the ticket:
 
-WebParts - SD Assignments and Queue Info.png
+![WebParts - SD Assignments and Queue Info](https://github.com/Protirus/Protirus.ServiceDesk.WebParts/blob/master/WebParts%20-%20SD%20Assignments%20and%20Queue%20Info%20(All).png)
 
-
+---
 
 **Old Links**
 
